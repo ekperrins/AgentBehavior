@@ -1,1 +1,160 @@
+# Brainstorm — NPC Priority System (Tiered Multiplier)
+## Source: Malows_Sliders/index.html
+## Date: 2026-04-01T12
 
+---
+
+## Overview
+
+The system is an interactive NPC priority engine inspired by Maslow's Hierarchy of Needs.
+It determines what an agent should focus on next by scoring each of its resources and
+picking the one with the highest score. The core idea: **lower-tier (survival) needs
+carry heavier weight than higher-tier (self-actualization) needs**, so an agent will
+naturally prioritize staying alive over socializing — unless its survival needs are
+already well-met.
+
+---
+
+## The Four Tiers (Maslow-Inspired)
+
+Each resource belongs to one of four tiers, and each tier has a configurable multiplier
+that amplifies how loudly needs in that tier "scream" for attention:
+
+| Tier | Name     | Resources              | Default Multiplier |
+|------|----------|------------------------|--------------------|
+| T1   | Survival | Water, Food, Rest      | 4.0×               |
+| T2   | Security | Comfort, Wealth        | 2.5×               |
+| T3   | Social   | Knowledge, Connection  | 1.5×               |
+| T4   | Self     | Esteem                 | 1.0×               |
+
+The multipliers are adjustable via sidebar sliders (range 0.0 – 10.0). Cranking T1 up
+makes survival needs dominate even more; lowering it lets higher-tier needs compete.
+
+---
+
+## Per-Resource State: Three Values
+
+Every resource tracks three numbers on a 0–100 scale, each draggable on a visual bar:
+
+1. **Value** (white pin) — The agent's current level of this resource.
+2. **Low-End Threshold** (orange pin) — Below this, the agent considers the resource
+   deficient and urgently needs to seek it out.
+3. **High-End Threshold** (cyan pin) — Above this, the resource is considered satisfied
+   and its priority is actively suppressed.
+
+The zone between Low and High is the **Comfort Zone** — the agent is okay but not fully
+satisfied here.
+
+---
+
+## The Scoring Formula (How Priority Is Calculated)
+
+The score determines how urgently the agent wants to pursue a given resource:
+
+### Case 1: Value is BELOW the Low-End Threshold (Deficient)
+
+    urgency = (low - value) / range
+    score   = tier_multiplier × (1 + urgency × 3)
+
+- `range` = `high - low` (minimum of 1 to avoid division by zero)
+- The further below the low-end the value is, the higher the urgency.
+- The `× 3` amplification factor means urgency escalates fast.
+- The tier multiplier then scales the whole thing — so a T1 resource that's critically
+  low vastly outscores a T4 resource that's also low.
+
+**Example:** Water at value=10, low=25, high=75 →
+  urgency = (25-10)/50 = 0.3 → score = 4.0 × (1 + 0.3 × 3) = 4.0 × 1.9 = 7.6
+
+### Case 2: Value is IN the Comfort Zone (Between Low and High)
+
+    position = (value - low) / range
+    score    = tier_multiplier × (1 - position × 0.8)
+
+- `position` is how far through the comfort zone the value is (0 = just entered, 1 = at high end).
+- The `× 0.8` dampening means the score tapers from the full tier multiplier down to
+  20% of it as the value approaches the high-end.
+- This creates a smooth gradient: the agent still *somewhat* cares about resources in
+  the comfort zone, but less and less as they fill up.
+
+**Example:** Food at value=50, low=30, high=80 →
+  position = (50-30)/50 = 0.4 → score = 4.0 × (1 - 0.4 × 0.8) = 4.0 × 0.68 = 2.72
+
+### Case 3: Value is ABOVE the High-End Threshold (Surplus)
+
+    score = -(value - high)
+
+- The score goes **negative**. This resource is fully satisfied and the agent should
+  actively ignore it.
+- The tier multiplier is NOT used here — a surplus is a surplus regardless of tier.
+- The more surplus there is, the more negative the score (further deprioritized).
+
+**Example:** Knowledge at value=90, high=85 →
+  score = -(90-85) = -5.0
+
+---
+
+## Decision-Making: How the Winner Is Picked
+
+1. All 8 resources are scored using the formula above.
+2. Scores are sorted highest-to-lowest.
+3. The resource with the highest score becomes the **Top Priority** — this is what the
+   agent should pursue next.
+4. A full ranked list is also produced, so secondary priorities are visible.
+
+---
+
+## Status Classification
+
+Each resource also gets a human-readable status based on its value relative to thresholds:
+
+| Condition                | Status Label    |
+|--------------------------|-----------------|
+| value ≤ low × 0.5       | Critical        |
+| value < low             | Below Comfort   |
+| low ≤ value ≤ high      | In Comfort Zone |
+| value > high            | Surplus         |
+
+---
+
+## Visual/Interactive Elements
+
+- **Draggable pins** on each resource bar let you adjust value, low-end, and high-end
+  thresholds in real-time. The system recalculates priority instantly.
+- **Comfort zone** is shown as a highlighted region on the bar between the two thresholds.
+- **Score badges** update live next to each resource name.
+- **Tier sidebar sliders** let you tune the weight of each Maslow tier globally.
+- **Glowing border animation** highlights whichever resource row is currently top priority.
+
+---
+
+## Key Design Properties for Agent Behavior
+
+1. **Survival-first by default** — T1's 4.0× multiplier means survival needs dominate
+   unless they're well into the comfort zone or surplus.
+
+2. **Smooth transitions** — The comfort zone formula creates a gradual handoff rather
+   than a hard cutoff, so agents don't flip-flop between priorities.
+
+3. **Surplus suppression** — Negative scores for over-satisfied resources ensure agents
+   don't wastefully pursue things they already have plenty of.
+
+4. **Tunable** — Every knob (tier multipliers, per-resource thresholds) is adjustable,
+   making it easy to create different agent personalities or difficulty levels.
+
+5. **Deterministic** — Given the same state, the same priority always comes out. No
+   randomness in the core scoring (randomness could be layered on top if desired).
+
+6. **Scalable** — Adding new resources or tiers just means adding entries to the
+   RESOURCES array and wiring up a tier multiplier.
+
+---
+
+## Open Questions / Next Steps
+
+- How does this integrate with an agent's action system? (e.g., "pursue water" needs
+  to map to actual pathfinding/task selection)
+- Should there be hysteresis (sticky priorities) to prevent rapid switching?
+- Could tier multipliers themselves be dynamic based on agent personality traits?
+- How do environmental factors (proximity to resources, danger) factor in alongside
+  this internal priority score?
+- What role does this play in the larger "modular, isolated behavior state" goal?
