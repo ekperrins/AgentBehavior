@@ -633,19 +633,24 @@
 
     <div class="formula-box">
       <h3>📐 Score Formula</h3>
-      <pre><strong>Exponential curve (all zones):</strong>
-  normalized = (value − low) / (high − low)
-  score = tier_mult × e^(−k × normalized)
-  k = 3.0 (steepness)
+      <pre><strong>Priority = Tier_Weight × MU(value)</strong>
+MU = marginal utility, normalized: MU(LOW) = 1.0
 
-<strong>Below low-end</strong> (normalized &lt; 0):
-  <em style="color:#f87171">exponent goes positive → score rises exponentially</em>
+<strong style="color:#38bdf8">Stone-Geary</strong> <em style="color:#64748b">(Water, Food)</em>
+  MU = 1 / (value − γ + 1),  γ = LOW
+  <em style="color:#f87171">Subsistence model — explodes below LOW</em>
 
-<strong>In comfort zone</strong> (0 ≤ normalized ≤ 1):
-  <em style="color:#4ade80">score decays smoothly from mult down to ~5%</em>
+<strong style="color:#facc15">Logarithmic</strong> <em style="color:#64748b">(Wealth)</em>
+  MU = (LOW+1) / (value+1)
+  <em style="color:#4ade80">Bernoulli 1738 — classic diminishing returns</em>
 
-<strong>Above high-end</strong> (normalized &gt; 1):
-  <em style="color:#22d3ee">score approaches 0 — never goes negative</em></pre>
+<strong style="color:#a78bfa">Exponential</strong> <em style="color:#64748b">(Rest, Connection)</em>
+  MU = e^(−β·value) / e^(−β·LOW),  β = 3/HIGH
+  <em style="color:#22d3ee">CARA — smooth satiation, never zero</em>
+
+<strong style="color:#fb923c">Power/CRRA</strong> <em style="color:#64748b">(Safety, Knowledge, Esteem)</em>
+  MU = (value+1)^(−σ) / (LOW+1)^(−σ)
+  <em style="color:#e879f9">σ = risk aversion: Safety 1.5 · Knowledge 0.5 · Esteem 0.3</em></pre>
     </div>
 
     <div class="legend" style="border:1px solid var(--border);border-radius:12px;padding:.8rem;background:var(--bg-panel);">
@@ -682,18 +687,19 @@
 <script>
 // ── Resource definitions ────────────────────────────
 const RESOURCES = [
-  { id: 'water',      name: 'Water',      emoji: '💧', color: '#38bdf8', tier: 1, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'food',       name: 'Food',       emoji: '🍞', color: '#4ade80', tier: 1, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'rest',       name: 'Rest',       emoji: '😴', color: '#a78bfa', tier: 1, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'safety',     name: 'Safety',     emoji: '🛡️', color: '#fb923c', tier: 2, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'wealth',     name: 'Wealth',     emoji: '💰', color: '#facc15', tier: 2, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'knowledge',  name: 'Knowledge',  emoji: '📚', color: '#2dd4bf', tier: 3, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'connection', name: 'Connection', emoji: '🤝', color: '#f472b6', tier: 3, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
-  { id: 'esteem',     name: 'Esteem',     emoji: '⭐', color: '#e879f9', tier: 4, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'water',      name: 'Water',      emoji: '💧', color: '#38bdf8', tier: 1, utilFn: 'stone-geary',  defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'food',       name: 'Food',       emoji: '🍞', color: '#4ade80', tier: 1, utilFn: 'stone-geary',  defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'rest',       name: 'Rest',       emoji: '😴', color: '#a78bfa', tier: 1, utilFn: 'exponential',  defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'safety',     name: 'Safety',     emoji: '🛡️', color: '#fb923c', tier: 2, utilFn: 'power', sigma: 1.5, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'wealth',     name: 'Wealth',     emoji: '💰', color: '#facc15', tier: 2, utilFn: 'logarithmic',  defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'knowledge',  name: 'Knowledge',  emoji: '📚', color: '#2dd4bf', tier: 3, utilFn: 'power', sigma: 0.5, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'connection', name: 'Connection', emoji: '🤝', color: '#f472b6', tier: 3, utilFn: 'exponential',  defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
+  { id: 'esteem',     name: 'Esteem',     emoji: '⭐', color: '#e879f9', tier: 4, utilFn: 'power', sigma: 0.3, defaultVal: 50, defaultLow: 33, defaultHigh: 66 },
 ];
 
 const TIER_NAMES  = { 1: 'Survival', 2: 'Security', 3: 'Social', 4: 'Self' };
 const TIER_COLORS = { 1: '#ef4444', 2: '#f59e0b', 3: '#8b5cf6', 4: '#ec4899' };
+const UTIL_FN_LABELS = { 'stone-geary': 'Stone-Geary', 'logarithmic': 'Log', 'exponential': 'Exponential', 'power': 'CRRA' };
 
 // Tier multipliers — live editable
 const tierMult = { 1: 4.0, 2: 2.5, 3: 1.5, 4: 1.0 };
@@ -730,6 +736,7 @@ function buildBars() {
         <span class="name">${r.name}</span>
         <span class="score-badge" id="score-${r.id}">0.0</span>
         <span class="tier-badge" style="color:${TIER_COLORS[r.tier]};border-color:${TIER_COLORS[r.tier]}44">${TIER_NAMES[r.tier]} (T${r.tier})</span>
+        <span class="tier-badge" style="color:${r.color};border-color:${r.color}44">${UTIL_FN_LABELS[r.utilFn]}${r.sigma ? ' σ=' + r.sigma : ''}</span>
       </div>
       <div class="bar-track" id="track-${r.id}">
         <div class="bar-fill" id="fill-${r.id}" style="width:${s.value}%;background:${r.color}"></div>
@@ -843,20 +850,68 @@ function updateVisuals(resId) {
   }
 }
 
-// ── Priority calculation ────────────────────────────
-const STEEPNESS = 3.0; // k — controls how fast priority drops across the comfort zone
+// ── Marginal Utility Functions (Real Economics) ─────
+// Each returns MU normalized so MU(value = LOW) = 1.0
+// Final priority = tier_mult × MU(value)
 
+function marginalUtility(value, low, high, utilFn, sigma) {
+  const v = Math.max(value, 0);
+
+  switch (utilFn) {
+    case 'stone-geary': {
+      // Stone-Geary subsistence (Geary 1950, Stone 1954)
+      // U(x) = β·ln(x − γ + 1), γ = subsistence level (LOW)
+      // MU(x) = β / (x − γ + 1)
+      // As x → γ, MU → ∞  (survival urgency)
+      const gamma = low;
+      const shifted = Math.max(v - gamma + 1, 0.01);
+      return 1 / shifted; // MU(LOW) = 1/(1) = 1.0 ✓
+    }
+
+    case 'logarithmic': {
+      // Bernoulli log utility (1738)
+      // U(x) = ln(x + 1), MU(x) = 1/(x + 1)
+      // Each additional unit worth less — the classic wealth curve
+      const norm = low + 1;
+      return norm / (v + 1); // MU(LOW) = (LOW+1)/(LOW+1) = 1.0 ✓
+    }
+
+    case 'exponential': {
+      // CARA exponential utility (Pratt 1964)
+      // U(x) = (1 − e^(−βx)) / β, MU(x) = e^(−βx)
+      // β calibrated so MU(HIGH) ≈ e^(−3) ≈ 5% of MU(0)
+      // Smooth satiation — never fully satisfied, but close
+      const beta = 3.0 / Math.max(high, 1);
+      const raw = Math.exp(-beta * v);
+      const atLow = Math.exp(-beta * low);
+      return raw / atLow; // MU(LOW) = 1.0 ✓
+    }
+
+    case 'power': {
+      // CRRA power utility (Arrow 1965, Pratt 1964)
+      // U(x) = (x+1)^(1−σ) / (1−σ), MU(x) = (x+1)^(−σ)
+      // σ = coefficient of relative risk aversion
+      //   σ=1.5 → steep (safety: people strongly avoid danger)
+      //   σ=0.5 → moderate (knowledge: steady diminishing returns)
+      //   σ=0.3 → gentle (esteem: self-actualization stays valuable)
+      const s = sigma || 1.0;
+      const raw = Math.pow(v + 1, -s);
+      const atLow = Math.pow(low + 1, -s);
+      return raw / atLow; // MU(LOW) = 1.0 ✓
+    }
+
+    default:
+      return 1;
+  }
+}
+
+// ── Priority calculation ────────────────────────────
 function recalc() {
   const scored = RESOURCES.map(r => {
     const s = state[r.id];
-    const range = Math.max(1, s.high - s.low);
     const mult = tierMult[r.tier];
-
-    // Normalized position: 0 at low-end, 1 at high-end
-    // Below low → negative → exponent goes positive → score rockets up
-    // Above high → >1 → score continues decaying toward 0, never negative
-    const normalized = (s.value - s.low) / range;
-    const score = mult * Math.exp(-STEEPNESS * normalized);
+    const mu = marginalUtility(s.value, s.low, s.high, r.utilFn, r.sigma);
+    const score = mult * mu;
 
     // Update score badge
     const scoreBadge = document.getElementById(`score-${r.id}`);
